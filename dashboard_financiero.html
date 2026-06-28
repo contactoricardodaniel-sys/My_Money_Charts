@@ -1,0 +1,716 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Finanzas Personales — Dashboard</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.0/chart.umd.min.js"></script>
+<link rel="stylesheet" href="estilos.css">
+<style>
+  .upload-bar{
+    background:var(--card);
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    padding:14px 20px;
+    display:flex;
+    align-items:center;
+    gap:14px;
+    flex-wrap:wrap;
+    margin-bottom:8px;
+  }
+  .upload-bar .label{font-size:12.5px;color:var(--text-secondary);}
+  #fileInput{display:none;}
+  .btn-upload{
+    background:var(--accent);
+    color:#fff;
+    border:none;
+    border-radius:var(--radius-sm);
+    padding:9px 16px;
+    font-size:13px;
+    font-weight:600;
+    font-family:var(--font-display);
+    cursor:pointer;
+    transition:opacity .15s;
+  }
+  .btn-upload:hover{opacity:.88;}
+  #fileStatus{font-size:12.5px;color:var(--text-tertiary);flex:1;min-width:160px;}
+  #fileStatus.ok{color:var(--green);}
+  #fileStatus.err{color:var(--red);}
+
+  .empty-state{
+    text-align:center;
+    padding:80px 20px;
+    color:var(--text-tertiary);
+    font-size:14px;
+  }
+  #dashboardContent{display:none;}
+
+  .usdt-row{display:flex;justify-content:space-between;align-items:center;padding:14px 0;border-bottom:1px solid #1a1f33;}
+  .usdt-row:last-child{border-bottom:none;}
+  .usdt-row .label{font-size:13px;color:var(--text-secondary);}
+  .usdt-row .value{font-size:15px;font-weight:700;}
+
+  th.num{text-align:right;}
+  canvas{max-width:100%;}
+
+  :root{
+    --bg:#0b0e1a;
+    --bg-elevated:#10142244;
+    --card:#151a2b;
+    --card-hover:#1b2138;
+    --border:#22273a;
+    --text-primary:#eef1f8;
+    --text-secondary:#8b92a8;
+    --text-tertiary:#5b6178;
+    --green:#16c784;
+    --green-soft:#16c78422;
+    --red:#ea3943;
+    --red-soft:#ea394322;
+    --accent:#5b6fed;
+    --accent-soft:#5b6fed22;
+    --gold:#f3a712;
+    --radius:14px;
+    --radius-sm:8px;
+    --font-display: 'Söhne', -apple-system, 'Segoe UI', system-ui, sans-serif;
+    --font-mono: 'JetBrains Mono', 'SF Mono', ui-monospace, monospace;
+  }
+
+  *{margin:0;padding:0;box-sizing:border-box;}
+
+  body{
+    background:
+      radial-gradient(circle at 15% 0%, #1a2140 0%, transparent 45%),
+      radial-gradient(circle at 90% 10%, #1c1430 0%, transparent 40%),
+      var(--bg);
+    color:var(--text-primary);
+    font-family:var(--font-display);
+    min-height:100vh;
+    padding-bottom:60px;
+    -webkit-font-smoothing:antialiased;
+  }
+
+  .tabular{font-family:var(--font-mono);font-variant-numeric:tabular-nums;}
+
+  /* ===== HEADER ===== */
+  header{
+    border-bottom:1px solid var(--border);
+    padding:20px 32px;
+    display:flex;
+    justify-content:space-between;
+    align-items:center;
+    flex-wrap:wrap;
+    gap:12px;
+    position:sticky;
+    top:0;
+    background:rgba(11,14,26,0.85);
+    backdrop-filter:blur(12px);
+    z-index:50;
+  }
+  .brand{display:flex;align-items:center;gap:10px;}
+  .brand-mark{
+    width:34px;height:34px;border-radius:9px;
+    background:linear-gradient(135deg, var(--accent), #8b5cf6);
+    display:flex;align-items:center;justify-content:center;
+    font-weight:800;font-size:15px;color:white;
+    box-shadow:0 0 24px var(--accent-soft);
+  }
+  .brand-text h1{font-size:16px;font-weight:700;letter-spacing:-0.2px;}
+  .brand-text span{font-size:12px;color:var(--text-secondary);}
+  .period-pill{
+    background:var(--card);
+    border:1px solid var(--border);
+    border-radius:100px;
+    padding:8px 16px;
+    font-size:13px;
+    color:var(--text-secondary);
+    display:flex;align-items:center;gap:8px;
+  }
+  .period-pill .dot{width:6px;height:6px;border-radius:50%;background:var(--green);box-shadow:0 0 8px var(--green);}
+
+  main{max-width:1320px;margin:0 auto;padding:28px 32px;}
+
+  .section-label{
+    font-size:11px;
+    font-weight:700;
+    letter-spacing:1.2px;
+    text-transform:uppercase;
+    color:var(--text-tertiary);
+    margin:36px 0 14px;
+    display:flex;
+    align-items:center;
+    gap:10px;
+  }
+  .section-label::after{
+    content:'';flex:1;height:1px;background:var(--border);
+  }
+  .section-label:first-child{margin-top:0;}
+
+  /* ===== KPI CARDS ===== */
+  .kpi-grid{
+    display:grid;
+    grid-template-columns:repeat(4,1fr);
+    gap:14px;
+  }
+  .kpi-card{
+    background:var(--card);
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    padding:18px 20px;
+    transition:border-color .2s, transform .2s;
+    position:relative;
+    overflow:hidden;
+  }
+  .kpi-card:hover{border-color:#33395a;transform:translateY(-1px);}
+  .kpi-label{
+    font-size:12.5px;color:var(--text-secondary);
+    margin-bottom:10px;display:flex;align-items:center;gap:6px;
+  }
+  .kpi-value{font-size:25px;font-weight:700;letter-spacing:-0.3px;}
+  .kpi-sub{font-size:12.5px;margin-top:8px;font-weight:600;display:flex;align-items:center;gap:4px;}
+  .up{color:var(--green);}
+  .down{color:var(--);}
+  .neutral{color:var(--text-secondary);}
+  .sparkline{position:absolute;bottom:0;right:0;opacity:0.5;}
+
+  /* ===== CARD GENERAL ===== */
+  .card{
+    background:var(--card);
+    border:1px solid var(--border);
+    border-radius:var(--radius);
+    padding:22px;
+  }
+  .card-title{
+    font-size:14.5px;font-weight:700;margin-bottom:4px;
+    display:flex;justify-content:space-between;align-items:baseline;
+  }
+  .card-subtitle{font-size:12px;color:var(--text-tertiary);margin-bottom:18px;}
+
+  .grid-2{display:grid;grid-template-columns:1.1fr 1.6fr;gap:16px;}
+  .grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:16px;}
+
+  @media(max-width:980px){
+    .kpi-grid{grid-template-columns:repeat(2,1fr);}
+    .grid-2,.grid-3{grid-template-columns:1fr;}
+  }
+
+  /* ===== DONUT LEGEND ===== */
+  .legend-list{margin-top:18px;display:flex;flex-direction:column;gap:10px;}
+  .legend-item{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:9px 11px;border-radius:var(--radius-sm);
+    cursor:pointer;transition:background .15s;
+    border:1px solid transparent;
+  }
+  .legend-item:hover{background:var(--card-hover);}
+  .legend-item.active{background:var(--card-hover);border-color:var(--border);}
+  .legend-left{display:flex;align-items:center;gap:10px;}
+  .legend-dot{width:10px;height:10px;border-radius:3px;}
+  .legend-name{font-size:13.5px;font-weight:600;}
+  .legend-pct{font-size:12px;color:var(--text-tertiary);}
+  .legend-amt{font-size:13.5px;font-weight:700;}
+
+  /* ===== TABLE ===== */
+  table{width:100%;border-collapse:collapse;}
+  thead th{
+    text-align:left;font-size:11px;font-weight:700;letter-spacing:0.6px;
+    text-transform:uppercase;color:var(--text-tertiary);
+    padding:0 12px 12px;border-bottom:1px solid var(--border);
+  }
+  thead th.num{text-align:right;}
+  tbody td{
+    padding:12px;font-size:13.5px;border-bottom:1px solid #1a1f33;
+  }
+  tbody tr{transition:background .15s;}
+  tbody tr:hover{background:var(--card-hover);}
+  tbody td.num{text-align:right;font-weight:600;}
+  .tag{
+    display:inline-block;font-size:11px;padding:3px 9px;border-radius:100px;
+    font-weight:600;
+  }
+  .method-nequi{background:#5b6fed22;color:#8a98ff;}
+  .method-efectivo{background:#16c78422;color:#16c784;}
+  .method-other{background:#5b617822;color:#8b92a8;}
+
+  /* ===== BALANCE PANEL ===== */
+  .balance-row{
+    display:flex;justify-content:space-between;align-items:center;
+    padding:13px 0;border-bottom:1px solid #1a1f33;
+  }
+  .balance-row:last-child{border-bottom:none;}
+  .balance-row .label{font-size:13.5px;color:var(--text-secondary);}
+  .balance-row .value{font-size:15px;font-weight:700;}
+  .balance-row.total{
+    margin-top:5px;padding-top:21px;border-top:1px solid var(--border);
+  }
+  .balance-row.total .label{color:var(--text-primary);font-weight:700;}
+  .balance-row.total .value{font-size:19px;}
+
+  .footer-note{
+    margin-top:50px;text-align:center;font-size:12px;color:var(--text-tertiary);
+    padding-top:24px;border-top:1px solid var(--border);
+  }
+
+  canvas{max-width:100%;}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand">
+    <div class="brand-mark">$</div>
+    <div class="brand-text">
+      <h1>My Money Charts</h1>
+      <span>Balance · Flujo · Inversiones</span>
+    </div>
+  </div>
+  <div class="period-pill">
+    <span class="dot"></span>
+    <span id="loadDate">Sin archivo cargado</span>
+  </div>
+</header>
+
+<main>
+
+  <div class="upload-bar">
+    <span class="label">Archivo fuente</span>
+    <button class="btn-upload" onclick="document.getElementById('fileInput').click()">Cargar .xlsx</button>
+    <input type="file" id="fileInput" accept=".xlsx,.xls">
+    <span id="fileStatus">Sube tu Plantilla_contable_personal.xlsx para ver tus datos</span>
+  </div>
+
+  <div class="empty-state" id="emptyState">
+    Esperando archivo — carga tu hoja de cálculo para ver el balance, el flujo de caja por categoría y tu inversión en USDT.
+  </div>
+
+  <div id="dashboardContent">
+
+    <!-- ===== KPIs ===== -->
+    <div class="section-label">Resumen general</div>
+    <div class="kpi-grid">
+      <div class="kpi-card">
+        <div class="kpi-label">Patrimonio acumulado</div>
+        <div class="kpi-value tabular" id="kpi-patrimonio" style="color: greenyellow;">0</div>
+        <div class="kpi-sub neutral">Activos − Pasivos</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Ingresos totales del periodo</div>
+        <div class="kpi-value tabular" id="kpi-ingresos" style="color: greenyellow;">—</div>
+        <div class="kpi-sub neutral">Celda C3</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">Egresos totales (Gastos variables)</div>
+        <div class="kpi-value tabular" id="kpi-gastos" style="color: indianred;">—</div>
+        <div class="kpi-sub down" id="kpi-gastos-sub">—</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-label">ROI inversión USDT (vigente)</div>
+        <div class="kpi-value tabular" id="kpi-roi">—</div>
+        <div class="kpi-sub neutral">Celda A9</div>
+      </div>
+    </div>
+
+    <!-- ===== GASTOS POR CATEGORÍA ===== -->
+    <div class="section-label">Gastos por categoría · Flujo de caja</div>
+    <div class="grid-2">
+      <div class="card">
+        <div class="card-title">Distribución de gastos</div>
+        <div class="card-subtitle" id="donutSubtitle">— totales · clic en una categoría para filtrar la tabla</div>
+        <canvas id="donutChart" height="240"></canvas>
+        <div class="legend-list" id="legendList"></div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">
+          <span>Gastos por categoría</span>
+          <span style="font-size:12px;color:var(--text-tertiary);font-weight:500;">comparativo</span>
+        </div>
+        <div class="card-subtitle">Monto total por categoría, de mayor a menor</div>
+        <canvas id="barChart" height="180"></canvas>
+
+        <div style="margin-top:24px;">
+          <div class="card-title" style="font-size:13px;margin-bottom:10px;">Métodos de pago</div>
+          <canvas id="methodChart" height="100"></canvas>
+        </div>
+      </div>
+    </div>
+
+    <!-- ===== TABLA DE MOVIMIENTOS ===== -->
+    <div class="card" style="margin-top:16px;">
+      <div class="card-title">
+        <span>Movimientos · Flujo de caja</span>
+        <span id="filterTag" style="font-size:12px;color:var(--accent);font-weight:600;display:none;"></span>
+      </div>
+      <div class="card-subtitle" id="tableSubtitle">Gastos variables registrados</div>
+      <table>
+        <thead>
+          <tr>
+            <th>Fecha</th>
+            <th>Concepto</th>
+            <th>Categoría</th>
+            <th>Método</th>
+            <th class="num">Monto</th>
+          </tr>
+        </thead>
+        <tbody id="txTableBody"></tbody>
+      </table>
+    </div>
+
+    <!-- ===== ESTADOS FINANCIEROS ===== -->
+    <div class="section-label">Estados financieros</div>
+    <div class="grid-3">
+
+      <div class="card">
+        <div class="card-title">Perdidas y Ganancias (P&L)</div>
+        <div class="card-subtitle">Periodo junio 11 - julio 11</div>
+        <div class="balance-row"><span class="label">Ingresos estimados</span><span class="value tabular" id="presupuestoDisponible">—</span></div>
+        <!--<div class="balance-row"><span class="label">Presupuesto inicial Mayo</span><span class="value tabular" id="presupuestoInicial">—</span></div>-->
+        <div class="balance-row"><span class="label">Ingresos totales</span><span class="value tabular" id="kpi-ingresos2" style="color: greenyellow;">—</span></div>
+        <div class="balance-row"><span class="label">Presupuesto egresos (30%)</span><span class="value tabular down" id="presupuesto30">—</span></div>
+        <div class="balance-row"><span class="label">Egresos totales</span><span class="value tabular" id="kpi-gastos2" style="color: indianred;">—</span></div>
+        <div class="balance-row total"><span class="label">Ganancias</span><span class="value tabular up" id="ganancias">—</span></div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">Balance General</div>
+        <div class="card-subtitle">Activos vs. Pasivos</div>
+        <div class="balance-row"><span class="label">Efectivo</span><span class="value tabular" id="efectivo">—</span></div>
+        <div class="balance-row"><span class="label">Nequi</span><span class="value tabular" id="nequi">—</span></div>
+        <div class="balance-row"><span class="label">Banco</span><span class="value tabular" id="banco">—</span></div>
+        <div class="balance-row"><span class="label">Inversión Bitunix USDT</span><span class="value tabular" id="usdtCantidad">—</span></div>
+        <div class="balance-row"><span class="label">Valor en COP</span><span class="value tabular" id="usdtValorCop">—</span></div>
+        <div class="balance-row"><span class="label">Presupuesto vigente inversión</span><span class="value tabular" id="presupuestoInversion" style="color: #16c784;">—</span></div>
+        <div class="balance-row total"><span class="label">Activo líquido total</span><span class="value tabular up" id="totalLiquido">—</span></div>
+        <div class="balance-row total"><span class="label">Patrimonio acumulado</span></div>
+        <div class="balance-row"><span class="label">Total Activos</span><span class="value tabular up" id="totalActivos">—</span></div>
+        <div class="balance-row"><span class="label">Total Pasivos</span><span class="value tabular down" id="totalPasivos">—</span></div>
+        <div class="balance-row total"><span class="label">Patrimonio neto</span><span class="value tabular up" id="patrimonioNeto">—</span></div>
+      </div>
+
+      <div class="card">
+        <div class="card-title">ROI Presupuesto de inversión</div>
+        <div class="card-subtitle">Histórico de rendimiento</div>
+        <div class="usdt-row"><span class="label">Monto total invertido</span><span class="value tabular" id="montoInv">—</span></div>
+        <div class="usdt-row"><span class="label">Tasa implícita</span><span class="value tabular" id="usdtTasa">—</span></div>
+      </div>
+
+    </div>
+
+    <!-- ===== PASIVOS DETALLE ===== -->
+    <div class="section-label">Pasivos — préstamos y saldos antiguos</div>
+    <div class="card">
+      <table id="pasivosTable">
+        <thead><tr><th>Concepto</th><th class="num">Monto</th></tr></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+  </div>
+
+  <div class="footer-note">Reading Powered By SheetJS</div>
+
+</main>
+
+<script>
+const fmt = n => {
+  if (n === null || n === undefined || isNaN(n)) return '—';
+  return '$' + Math.round(n).toLocaleString('es-CO');
+};
+const fmtNum = n => {
+  if (n === null || n === undefined || isNaN(n)) return '—';
+  return Number(n).toLocaleString('es-CO');
+};
+function getVal(sheet, coord){
+  const cell = sheet[coord];
+  return cell ? cell.v : null;
+}
+
+const categoriaColors = {
+  "Ocio/Social": "#5b6fed",
+  "Comida": "#16c784",
+  "Transporte": "#f3a712",
+  "Transportes": "#f3a712",
+  "Otros": "#ea3943",
+  "Inversión": "#8b5cf6"
+};
+function colorFor(cat){ return categoriaColors[cat] || '#5b6178'; }
+
+function methodTag(method){
+  const m = (method || '').toLowerCase();
+  if (m.includes('nequi')) return `<span class="tag method-nequi">Nequi</span>`;
+  if (m.includes('efectivo')) return `<span class="tag method-efectivo">Efectivo</span>`;
+  return `<span class="tag method-other">${method || '—'}</span>`;
+}
+
+let donutChartInstance = null, barChartInstance = null, methodChartInstance = null;
+let activeCategory = null;
+let transacciones = [];
+
+function aggregateByCategory(list, keyFn){
+  const map = {};
+  list.forEach(t => { const k = keyFn(t); map[k] = (map[k]||0) + t.monto; });
+  return Object.entries(map).sort((a,b)=>b[1]-a[1]);
+}
+
+function renderLegend(catTotals, totalGastos){
+  const container = document.getElementById('legendList');
+  container.innerHTML = '';
+  catTotals.forEach(([cat, val]) => {
+    const pct = totalGastos ? ((val/totalGastos)*100).toFixed(1) : 0;
+    const div = document.createElement('div');
+    div.className = 'legend-item' + (activeCategory===cat ? ' active' : '');
+    div.innerHTML = `
+      <div class="legend-left">
+        <span class="legend-dot" style="background:${colorFor(cat)}"></span>
+        <span class="legend-name">${cat}</span>
+        <span class="legend-pct">${pct}%</span>
+      </div>
+      <span class="legend-amt tabular">${fmt(val)}</span>
+    `;
+    div.onclick = () => toggleCategory(cat, catTotals, totalGastos);
+    container.appendChild(div);
+  });
+}
+
+function renderTable(filterCat){
+  const body = document.getElementById('txTableBody');
+  body.innerHTML = '';
+  const rows = filterCat ? transacciones.filter(t=>t.categoria===filterCat) : transacciones;
+  rows.forEach(t => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td class="tabular" style="color:var(--text-secondary)">${t.fechaStr}</td>
+      <td>${t.concepto}</td>
+      <td><span class="legend-dot" style="background:${colorFor(t.categoria)};display:inline-block;margin-right:6px;"></span>${t.categoria}</td>
+      <td>${methodTag(t.metodo)}</td>
+      <td class="num tabular down">-${fmt(t.monto)}</td>
+    `;
+    body.appendChild(tr);
+  });
+
+  const filterTag = document.getElementById('filterTag');
+  if(filterCat){
+    filterTag.style.display = 'inline';
+    filterTag.textContent = `Filtrado: ${filterCat} ✕`;
+    filterTag.style.cursor = 'pointer';
+    filterTag.onclick = () => toggleCategory(filterCat, null, null);
+  } else {
+    filterTag.style.display = 'none';
+  }
+}
+
+function toggleCategory(cat, catTotals, totalGastos){
+  activeCategory = (activeCategory === cat) ? null : cat;
+  if (catTotals) renderLegend(catTotals, totalGastos);
+  renderTable(activeCategory);
+}
+
+document.getElementById('fileInput').addEventListener('change', function(e){
+  const file = e.target.files[0];
+  if (!file) return;
+  const statusEl = document.getElementById('fileStatus');
+  statusEl.className = '';
+  statusEl.textContent = 'Leyendo archivo…';
+
+  const reader = new FileReader();
+  reader.onload = function(evt){
+    try {
+      const data = new Uint8Array(evt.target.result);
+      const workbook = XLSX.read(data, {type:'array', cellDates:true});
+      const sheetName = workbook.SheetNames[0];
+      const sheet = workbook.Sheets[sheetName];
+
+      // ---- BALANCE GENERAL (bloque desplazado a columna T) ----
+      const totalActivos = getVal(sheet,'T14');
+      const totalPasivos = getVal(sheet,'T15');
+      const patrimonio = (totalActivos - totalPasivos);
+      document.getElementById('kpi-patrimonio').textContent = fmt(patrimonio);
+      document.getElementById('totalActivos').textContent = fmt(totalActivos);
+      document.getElementById('totalPasivos').textContent = fmt(totalPasivos);
+      document.getElementById('patrimonioNeto').textContent = fmt(patrimonio);
+
+      // ---- ACTIVO LIQUIDO ----
+      const efectivo = getVal(sheet,'T2');
+      const nequi = getVal(sheet,'T3');
+      const banco = getVal(sheet,'T4');
+      const totalLiquido = getVal(sheet,'F25') ?? ((efectivo||0)+(nequi||0)+(banco||0));
+      document.getElementById('efectivo').textContent = fmt(efectivo);
+      document.getElementById('nequi').textContent = fmt(nequi);
+      document.getElementById('banco').textContent = fmt(banco);
+      document.getElementById('totalLiquido').textContent = fmt(totalLiquido);
+
+      // ---- P&L / KPIs ----
+      const totalIngresos = getVal(sheet,'C3');
+      const totalIngresos2 = getVal(sheet,'C3');
+      const profit = getVal(sheet,'C15'); 
+      const roi = getVal(sheet,'A9');
+      document.getElementById('kpi-ingresos').textContent = fmt(totalIngresos);
+      document.getElementById('kpi-ingresos2').textContent = fmt(totalIngresos2);
+      document.getElementById('ganancias').textContent = fmt(profit);
+      document.getElementById('kpi-roi').textContent = fmt(roi);
+      const kpiRoiElement = document.getElementById('kpi-roi');
+      kpiRoiElement.textContent = fmt(roi);
+      if (roi > 0) {
+        kpiRoiElement.style.color = 'greenyellow';
+      } else {
+        kpiRoiElement.style.color = 'indianred';
+      }
+
+      // ---- PRESUPUESTO ----
+      document.getElementById('presupuestoDisponible').textContent = fmt(getVal(sheet,'C8'));
+      /*document.getElementById('presupuestoInicial').textContent = fmt(getVal(sheet,'A2'));*/
+      document.getElementById('presupuesto30').textContent = fmt(getVal(sheet,'C10'));
+      document.getElementById('presupuestoInversion').textContent = fmt(getVal(sheet,'A14'));
+
+      // ---- USDT ----
+      const montoInvertido = getVal(sheet,'A6');
+      document.getElementById('montoInv').textContent = fmt(montoInvertido);
+      const usdtCant = getVal(sheet,'E11');
+      const usdtCop = getVal(sheet,'F11');
+      document.getElementById('usdtCantidad').textContent = usdtCant ? fmtNum(usdtCant) + ' USDT' : '—';
+      document.getElementById('usdtValorCop').textContent = fmt(usdtCop);
+      document.getElementById('usdtTasa').textContent = (usdtCant && usdtCop) ? fmt(usdtCop/usdtCant) + ' / USDT' : '—'; //
+
+      // ---- PASIVOS (E13:F17) ----
+      const pasivosRows = [];
+      for (let r = 13; r <= 17; r++){
+        const concepto = getVal(sheet, 'E'+r);
+        const monto = getVal(sheet, 'F'+r);
+        if (concepto && typeof monto === 'number'){
+          pasivosRows.push([concepto, monto]);
+        }
+      }
+      document.querySelector('#pasivosTable tbody').innerHTML = pasivosRows.map(([c,m]) =>
+        `<tr><td>${c}</td><td class="num tabular down">${fmt(m)}</td></tr>`
+      ).join('') || '<tr><td colspan="2">Sin datos</td></tr>';
+
+      // ---- FLUJO DE CAJA: J=Fecha, K=Concepto, L=Metodo, M=Categoria, N=Monto ----
+      transacciones = [];
+      let totalGastosVariables = 0;
+      for (let r = 3; r <= 29; r++){
+        const fecha = getVal(sheet, 'J'+r);
+        const concepto = getVal(sheet, 'K'+r);
+        const metodo = getVal(sheet, 'L'+r);
+        const categoria = getVal(sheet, 'M'+r);
+        const monto = getVal(sheet, 'N'+r);
+        // Solo filas validas: concepto presente y monto numerico real
+        if (concepto && typeof monto === 'number'){
+          let fechaStr = '—';
+          if (fecha instanceof Date) fechaStr = fecha.toLocaleDateString('es-CO', {day:'2-digit', month:'short'});
+          transacciones.push({
+            fechaStr,
+            concepto: String(concepto).trim(),
+            metodo: metodo || '—',
+            categoria: categoria || 'Otros',
+            monto
+          });
+          totalGastosVariables += monto;
+        }
+      }
+
+      document.getElementById('kpi-gastos').textContent = fmt(totalGastosVariables);
+      document.getElementById('kpi-gastos2').textContent = fmt(totalGastosVariables);
+      document.getElementById('kpi-gastos-sub').textContent = `${transacciones.length} movimientos`;
+      document.getElementById('donutSubtitle').textContent = `${fmt(totalGastosVariables)} totales · clic en una categoría para filtrar la tabla`;
+      document.getElementById('tableSubtitle').textContent = `${transacciones.length} gastos variables registrados`;
+
+      // ---- AGREGACIONES POR CATEGORIA Y METODO ----
+      const catTotals = aggregateByCategory(transacciones, t => t.categoria);
+      const totalGastos = catTotals.reduce((s,[,v])=>s+v,0);
+      const methodTotals = aggregateByCategory(transacciones, t => t.metodo);
+
+      // ---- DONUT CHART ----
+      if (donutChartInstance) donutChartInstance.destroy();
+      donutChartInstance = new Chart(document.getElementById('donutChart'), {
+        type: 'doughnut',
+        data: {
+          labels: catTotals.map(c=>c[0]),
+          datasets: [{
+            data: catTotals.map(c=>c[1]),
+            backgroundColor: catTotals.map(c=>colorFor(c[0])),
+            borderColor: '#151a2b',
+            borderWidth: 3,
+            hoverOffset: 8
+          }]
+        },
+        options: {
+          cutout: '68%',
+          plugins: { legend: { display:false }, tooltip:{ callbacks:{ label: ctx => ` ${ctx.label}: ${fmt(ctx.raw)}` }}},
+          onClick: (evt, elements) => {
+            if(elements.length){
+              const idx = elements[0].index;
+              toggleCategory(catTotals[idx][0], catTotals, totalGastos);
+            }
+          }
+        }
+      });
+
+      renderLegend(catTotals, totalGastos);
+      
+
+      // ---- BAR CHART ----
+      if (barChartInstance) barChartInstance.destroy();
+      barChartInstance = new Chart(document.getElementById('barChart'), {
+        type: 'bar',
+        data: {
+          labels: catTotals.map(c=>c[0]),
+          datasets: [{
+            data: catTotals.map(c=>c[1]),
+            backgroundColor: catTotals.map(c=>colorFor(c[0])),
+            borderRadius: 6,
+            maxBarThickness: 46
+          }]
+        },
+        options: {
+          indexAxis: 'y',
+          plugins: { legend:{display:false}, tooltip:{ callbacks:{ label: ctx => ` ${fmt(ctx.raw)}` }}},
+          scales: {
+            x: { grid:{color:'#1a1f33'}, ticks:{color:'#8b92a8', callback: v => '$'+(v/1000)+'k'} },
+            y: { grid:{display:false}, ticks:{color:'#eef1f8', font:{weight:600}} }
+          }
+        }
+      });
+
+      // ---- METHOD CHART ----
+      const methodColors = { "nequi":"#5b6fed", "efectivo":"#16c784", "-":"#5b6178", "—":"#5b6178" };
+      if (methodChartInstance) methodChartInstance.destroy();
+      methodChartInstance = new Chart(document.getElementById('methodChart'), {
+        type: 'bar',
+        data: {
+          labels: methodTotals.map(m=>m[0]),
+          datasets: [{
+            data: methodTotals.map(m=>m[1]),
+            backgroundColor: methodTotals.map(m=>methodColors[m[0].toLowerCase()]||'#5b6178'),
+            borderRadius:6, maxBarThickness:30
+          }]
+        },
+        options: {
+          plugins:{legend:{display:false}, tooltip:{callbacks:{label: ctx=>` ${fmt(ctx.raw)}`}}},
+          scales:{
+            x:{grid:{display:false}, ticks:{color:'#8b92a8', font:{size:11}}},
+            y:{grid:{color:'#1a1f33'}, ticks:{color:'#8b92a8', callback:v=>'$'+(v/1000)+'k'}}
+          }
+        }
+      });
+
+      renderTable(null);
+      activeCategory = null;
+
+      // ---- META ----
+      document.getElementById('loadDate').textContent = file.name + ' · ' + new Date().toLocaleString('es-CO');
+      document.getElementById('dashboardContent').style.display = 'block';
+      document.getElementById('emptyState').style.display = 'none';
+      statusEl.className = 'ok';
+      statusEl.textContent = '✓ Cargado correctamente';
+
+    } catch (err){
+      console.error(err);
+      statusEl.className = 'err';
+      statusEl.textContent = 'Error leyendo el archivo: ' + err.message;
+    }
+  };
+  reader.readAsArrayBuffer(file);
+});
+</script>
+</body>
+</html>
